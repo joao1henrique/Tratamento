@@ -373,3 +373,53 @@ Tratamento/
 - `.env.example`: modelo do arquivo `.env`, sem senha.
 - `.env`: usuário e senha do banco (fora do git).
 - `.gitignore`: deixa fora do git o `.env`, `saida/`, `temp/` e `BasesDados/`.
+
+---
+
+## Implantacao em nuvem — Aiven PostgreSQL
+
+A base tratada foi implantada no PostgreSQL gerenciado pela plataforma Aiven, utilizando o banco `defaultdb` e o schema `public`.
+
+### Estrutura armazenada
+
+O banco possui nove tabelas: seis dimensoes, duas tabelas fato e uma tabela de controle de carga.
+
+| Tabela | Registros |
+|---|---:|
+| fato_movimentacao | 1.875.754 |
+| fato_perfil | 312.896 |
+| controle_carga | 212 |
+| Seis tabelas de dimensoes | 86 |
+
+As duas tabelas fato totalizam 2.188.650 registros.
+
+### Otimizacao de armazenamento
+
+A base original possui aproximadamente 3,1 GB de arquivos compactados. Os 424 CSVs tratados ocupam cerca de 0,26 GiB.
+
+A estrategia adotada inclui agregacao dos microdados, modelagem dimensional e armazenamento apenas das informacoes necessarias para analise.
+
+O PostgreSQL apresentou tamanho de 361 MB, medido com `pg_database_size()`, permanecendo abaixo do limite nominal de 1 GB do plano gratuito do Aiven. Essa medicao nao representa necessariamente a ocupacao total do disco do servico.
+
+### Importacao
+
+O arquivo `importar_aiven.py` foi utilizado para carregar os CSVs tratados no PostgreSQL do Aiven.
+
+A conexao utiliza variaveis de ambiente definidas localmente no arquivo `.env`, que nao deve ser publicado no repositorio.
+
+### Validacao
+
+Foram realizados testes diretamente no PostgreSQL:
+
+- 0 competencias nulas nas duas tabelas fato;
+- 0 saldos inconsistentes;
+- 0 codigos de UF sem correspondencia, entre os valores nao nulos de fato_movimentacao;
+- periodo armazenado: janeiro de 2020 a dezembro de 2025;
+- 212 registros na tabela controle_carga.
+
+As consultas de auditoria estao disponiveis em `sql/AUDITORIA_FINAL.sql`.
+
+### Documentacao complementar
+
+Consulte `RELATORIO_TECNICO_FASE_2.md` para a descricao da entrega tecnica.
+
