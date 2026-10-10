@@ -1,0 +1,5 @@
+.env
+saida/
+temp/
+BasesDados/
+__pycache__/
