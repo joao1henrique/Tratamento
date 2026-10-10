@@ -2,7 +2,7 @@
 
 Projeto da disciplina de Big Data e Analytics. Tema: dinâmica de emprego formal e turnover setorial, com recorte de gênero e raça/cor (ODS 5 e ODS 18).
 
-Este documento descreve de onde vieram os dados, como foram tratados, como ficaram guardados no PostgreSQL (banco `BigData`) e como rodar o processo de novo.
+Aqui explicamos de onde vieram os dados, o tratamento aplicado, a estrutura do PostgreSQL e como executar o projeto. O desenvolvimento inicial usou o banco local `BigData`; a versão entregue foi carregada no `defaultdb` do Aiven.
 
 ## 1. Origem dos dados
 
@@ -54,7 +54,7 @@ Por isso agregamos sempre pela coluna `competênciamov`, que é a competência d
 
 Não removemos linhas iguais. O microdado público não tem identificador do trabalhador, então duas linhas idênticas podem ser duas pessoas diferentes, com a mesma idade e o mesmo salário, admitidas na mesma empresa. Apagar duplicatas apagaria admissões reais.
 
-O risco de duplicidade que existe de verdade é carregar o mesmo arquivo duas vezes. Evitamos isso de duas formas: o tratamento pula o arquivo que já tem CSV na pasta `saida/`, e a carga apaga e recria as tabelas antes de inserir. Rodar o processo duas vezes dá o mesmo resultado.
+O cuidado maior é não processar o mesmo arquivo duas vezes. O tratamento aproveita o CSV já produzido em `saida/`, caso ele exista. No carregador original, a recriação das tabelas evita acumular resultados de cargas anteriores. Na implantação do Aiven usamos outro script, `importar_aiven.py`, com verificação de tabelas já preenchidas. Não é para executar novamente a carga sobre o banco populado.
 
 ### Nulos e códigos inválidos
 
@@ -96,7 +96,7 @@ O código 90 (desligamento por acordo entre empregado e empregador) ficou em "ou
 
 ### Agregação
 
-O banco vai ser migrado para o plano gratuito do Aiven, que tem limite de 1 GB. Os microdados têm 261,7 milhões de linhas, então não dava para guardar linha a linha. O que vai para o banco são contagens e somas por combinação de dimensões.
+O banco foi hospedado no plano gratuito do Aiven, com limite nominal de 1 GB. Os microdados têm 261,7 milhões de linhas, então não dava para guardar linha a linha. O que vai para o banco são contagens e somas por combinação de dimensões.
 
 ## 3. Antes e depois
 
@@ -124,7 +124,7 @@ Verificamos as colunas dos três tipos de arquivo e nenhuma delas tem CPF, nome,
 
 ## 5. Modelo do banco
 
-Usamos um modelo estrela no schema `public` do banco `BigData`, com duas tabelas fato, seis dimensões e uma tabela de controle.
+Usamos um modelo dimensional no schema `public`, com duas tabelas fato, seis dimensões e uma tabela de controle. O ambiente local foi chamado `BigData` e a implantação final utiliza `defaultdb` no Aiven.
 
 ```mermaid
 erDiagram
@@ -266,18 +266,17 @@ Ela tem uma linha para cada um dos 212 arquivos originais: `nome_arquivo` (chave
 
 | Tabela | Linhas | Tamanho (com índices) |
 |---|---|---|
-| fato_movimentacao | 1.875.754 | 229,22 MB |
-| fato_perfil | 312.896 | 44,16 MB |
-| controle_carga | 212 | 0,05 MB |
-| dim_uf | 28 | 0,02 MB |
-| dim_setor | 22 | 0,02 MB |
-| dim_sexo | 3 | 0,02 MB |
-| dim_raca_cor | 7 | 0,02 MB |
-| dim_faixa_etaria | 8 | 0,02 MB |
-| dim_tipo_movimentacao | 18 | 0,02 MB |
-| Total das tabelas | | 273,58 MB |
+| fato_movimentacao | 1.875.754 | 293 MB |
+| fato_perfil | 312.896 | 60 MB |
+| controle_carga | 212 | 56 kB |
+| dim_uf | 28 | 24 kB |
+| dim_setor | 22 | 24 kB |
+| dim_sexo | 3 | 24 kB |
+| dim_raca_cor | 7 | 24 kB |
+| dim_faixa_etaria | 8 | 24 kB |
+| dim_tipo_movimentacao | 18 | 24 kB |
 
-O banco inteiro, contando o catálogo do PostgreSQL, ocupa 281,64 MB (`pg_database_size`). Fica com folga dentro do limite de 1 GB, então mantivemos os índices.
+Esses são os tamanhos medidos **depois da carga no Aiven**, incluindo índices, e foram arredondados pelo PostgreSQL. O tamanho lógico total do banco `defaultdb`, medido por `pg_database_size`, foi de **361 MB**. Isso não equivale necessariamente ao consumo total de armazenamento do serviço, que precisa ser acompanhado no painel do Aiven.
 
 ## 7. Validação
 
@@ -319,13 +318,15 @@ Também conferimos que as duas tabelas fato têm os mesmos totais: 134.791.601 a
 
 ## 8. Como executar
 
-É preciso ter Python 3, um PostgreSQL rodando e a pasta `BasesDados` ao lado da pasta `Tratamento`.
+É preciso ter Python 3, acesso a um PostgreSQL e a pasta `BasesDados` ao lado da pasta `Tratamento` para refazer o tratamento desde os microdados.
 
 1. Copiar o arquivo `.env.example` para `.env` e preencher usuário e senha do PostgreSQL.
 2. Instalar as bibliotecas: `pip install -r requirements.txt`
 3. De dentro da pasta `Tratamento`, rodar: `python scripts/main.py`
 
-O script cria o banco `BigData` se ele não existir, trata os arquivos, cria as tabelas, carrega os dados e mostra a validação. Cada script também pode ser rodado sozinho, por exemplo `python scripts/validar.py`.
+Esses passos são para a **execução local original**: o `main.py` tenta criar o banco `BigData`, trata os arquivos, cria as tabelas, faz a carga e mostra a validação. Cada script também pode ser executado separadamente, por exemplo `python scripts/validar.py`.
+
+Para o **Aiven**, criamos o serviço PostgreSQL, configuramos a conexão SSL no `.env`, executamos o SQL de criação das tabelas e carregamos as dimensões. Em seguida, importamos os CSVs tratados usando `python importar_aiven.py`. **Esse importador não deve ser reexecutado em um banco já preenchido.** O arquivo `sql/AUDITORIA_FINAL.sql` reúne as consultas utilizadas na conferência final. Nunca execute novamente o SQL que recria as tabelas sobre o banco com dados, pois ele contém comandos de exclusão.
 
 Para testar com um mês só, basta mudar no `config.py` a linha `COMPETENCIAS_TESTE = []` para `COMPETENCIAS_TESTE = ["202401"]`. Com a lista vazia, o processo roda todos os meses dos anos em `ANOS`.
 
@@ -351,9 +352,13 @@ Tratamento/
 │   ├── validar.py
 │   └── main.py
 ├── sql/
-│   └── criar_tabelas.sql
+│   ├── criar_tabelas.sql
+│   └── AUDITORIA_FINAL.sql
 ├── saida/
 ├── temp/
+├── importar_aiven.py
+├── RELATORIO_TECNICO_FASE_2.md
+├── evidencias/
 ├── README.md
 ├── requirements.txt
 ├── .env.example
@@ -376,50 +381,20 @@ Tratamento/
 
 ---
 
-## Implantacao em nuvem — Aiven PostgreSQL
+## 10. Implantação final no Aiven
 
-A base tratada foi implantada no PostgreSQL gerenciado pela plataforma Aiven, utilizando o banco `defaultdb` e o schema `public`.
+A versão da entrega foi colocada no PostgreSQL gerenciado do Aiven, no banco `defaultdb`, schema `public`, com conexão SSL. O tratamento foi feito antes da carga: **212 arquivos originais** geraram **424 CSVs tratados** (aproximadamente **0,26 GiB**), que alimentaram as tabelas já modeladas.
 
-### Estrutura armazenada
+O script `importar_aiven.py` fez a importação para a nuvem. Ao final, registramos **1.875.754** linhas em `fato_movimentacao`, **312.896** em `fato_perfil`, **212** em `controle_carga` e **86** nas seis dimensões. Ao todo são **2.188.948 registros**, dos quais **2.188.650** estão nas tabelas fato.
 
-O banco possui nove tabelas: seis dimensoes, duas tabelas fato e uma tabela de controle de carga.
+O tamanho lógico do banco depois da carga foi de **361 MB**. Optamos por enviar somente os dados agregados, usar códigos compactos para as dimensões e deixar os arquivos originais fora do banco. Assim, foi possível trabalhar abaixo do limite nominal de 1 GB. O tamanho total ocupado pelo serviço, incluindo componentes gerenciados pela plataforma, deve ser observado no painel do Aiven.
 
-| Tabela | Registros |
-|---|---:|
-| fato_movimentacao | 1.875.754 |
-| fato_perfil | 312.896 |
-| controle_carga | 212 |
-| Seis tabelas de dimensoes | 86 |
+### Conferências realizadas
 
-As duas tabelas fato totalizam 2.188.650 registros.
+Rodamos consultas para conferir a quantidade de linhas, o tamanho do banco e a consistência das duas tabelas fato. As verificações retornaram **zero competências nulas**, **zero saldos diferentes de admissões menos desligamentos** e **zero códigos de UF sem correspondência** entre as UFs não nulas da `fato_movimentacao`. O período das duas tabelas vai de **janeiro de 2020 a dezembro de 2025**.
 
-### Otimizacao de armazenamento
+Os SQLs estão em `sql/AUDITORIA_FINAL.sql` e os prints em `evidencias/`. Essas verificações cobrem os critérios mencionados, mas não substituem uma auditoria completa de todas as dimensões nem a conferência permanente do espaço utilizado no Aiven.
 
-A base original possui aproximadamente 3,1 GB de arquivos compactados. Os 424 CSVs tratados ocupam cerca de 0,26 GiB.
+O arquivo `.env` contém credenciais locais e **não deve ser publicado**. O repositório reúne os scripts e a documentação; os microdados originais e os CSVs grandes não estão versionados.
 
-A estrategia adotada inclui agregacao dos microdados, modelagem dimensional e armazenamento apenas das informacoes necessarias para analise.
-
-O PostgreSQL apresentou tamanho de 361 MB, medido com `pg_database_size()`, permanecendo abaixo do limite nominal de 1 GB do plano gratuito do Aiven. Essa medicao nao representa necessariamente a ocupacao total do disco do servico.
-
-### Importacao
-
-O arquivo `importar_aiven.py` foi utilizado para carregar os CSVs tratados no PostgreSQL do Aiven.
-
-A conexao utiliza variaveis de ambiente definidas localmente no arquivo `.env`, que nao deve ser publicado no repositorio.
-
-### Validacao
-
-Foram realizados testes diretamente no PostgreSQL:
-
-- 0 competencias nulas nas duas tabelas fato;
-- 0 saldos inconsistentes;
-- 0 codigos de UF sem correspondencia, entre os valores nao nulos de fato_movimentacao;
-- periodo armazenado: janeiro de 2020 a dezembro de 2025;
-- 212 registros na tabela controle_carga.
-
-As consultas de auditoria estao disponiveis em `sql/AUDITORIA_FINAL.sql`.
-
-### Documentacao complementar
-
-Consulte `RELATORIO_TECNICO_FASE_2.md` para a descricao da entrega tecnica.
-
+**Repositório:** https://github.com/joao1henrique/Tratamento
