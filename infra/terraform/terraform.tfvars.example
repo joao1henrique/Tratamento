@@ -1,0 +1,8 @@
+# Copie para terraform.tfvars e preencha com os valores do console do Aiven.
+# O terraform.tfvars NAO deve ir para o git.
+# O token NAO vai aqui: use a variavel de ambiente TF_VAR_aiven_api_token.
+
+aiven_project = "ucsal-e322"
+service_name  = "pg-374a1585"
+plan          = "developer-1"
+cloud_name    = "do-nyc"

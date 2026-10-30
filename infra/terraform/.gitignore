@@ -1,0 +1,17 @@
+# RNF10 - Arquivos do Terraform que NAO podem ir para o git.
+
+# Plugins baixados pelo terraform init
+.terraform/
+
+# Estado do Terraform: guarda a senha do banco em texto puro
+*.tfstate
+*.tfstate.*
+
+# Valores reais das variaveis (o modelo e o terraform.tfvars.example)
+terraform.tfvars
+*.auto.tfvars
+
+# Logs de erro
+crash.log
+
+# O .terraform.lock.hcl DEVE ser versionado (fixa a versao do provider).
