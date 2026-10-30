@@ -1,4 +1,4 @@
-# Infraestrutura (Terraform)
+﻿# Infraestrutura (Terraform)
 
 Esta pasta representa como código o banco de dados do projeto: um PostgreSQL gerenciado no Aiven, “no plano Developer (developer-1, 8 GB de armazenamento).
 
