@@ -1,4 +1,4 @@
-# Novo CAGED – Tratamento, modelagem e armazenamento em nuvem
+﻿# Novo CAGED – Tratamento, modelagem e armazenamento em nuvem
 
 Projeto da disciplina de Big Data e Analytics. Tema: **dinâmica do emprego formal e turnover setorial, com recortes por sexo e raça/cor** (ODS 5 e ODS 18).
 
@@ -318,7 +318,7 @@ Outras medidas:
 ## 6. Base de dados tratada
 
 - **No banco:** a base tratada está carregada no PostgreSQL do Aiven (`defaultdb`), nas tabelas descritas na seção 3.
-- **Em arquivos:** os 424 CSVs agregados (cerca de 0,26 GiB) não estão no git por causa do tamanho. Estão disponíveis em: **[inserir link]**
+- **Em arquivos:** os 424 CSVs agregados (cerca de 0,26 GiB) não estão no git por causa do tamanho. Estão disponíveis em: [Release v2.0-dados-tratados](https://github.com/joao1henrique/Tratamento/releases/tag/v2.0-dados-tratados) (`caged_tratado.zip`, 57 MB)
 - **Reprodução:** podem ser gerados novamente a partir dos microdados públicos, seguindo a seção 7.
 
 ---
